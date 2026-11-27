@@ -1,0 +1,2172 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tether — AI Safety &amp; Control Layer</title>
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Inter & JetBrains Mono Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            canvas: '#08080A',
+            surface: '#0D0E12',
+            card: '#12141A',
+            cardHover: '#161922',
+            cobalt: {
+              DEFAULT: '#1D4ED8',
+              bright: '#2563EB',
+              soft: '#60A5FA',
+              pale: '#93C5FD',
+            }
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    :root {
+      --bg-canvas: #08080A;
+      --bg-surface: #0D0E12;
+      --bg-card: #12141A;
+      --border-hairline: rgba(255, 255, 255, 0.08);
+      --border-hover: rgba(59, 130, 246, 0.38);
+      --blue-primary: #1D4ED8;
+      --blue-interactive: #2563EB;
+      --text-primary: #F4F4F6;
+      --text-secondary: #9CA3AF;
+      --text-muted: #6B7280;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      background-color: var(--bg-canvas);
+      color: var(--text-primary);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      margin: 0;
+      padding: 0;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+      font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    }
+
+    /* Framer-inspired pitch-black canvas with subtle top radial cobalt glow & hairline grid */
+    .framer-canvas {
+      background-color: #08080A;
+      background-image:
+        radial-gradient(ellipse 75% 42% at 50% -6%, rgba(29, 78, 216, 0.18), transparent 72%),
+        linear-gradient(to right, rgba(255, 255, 255, 0.022) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.022) 1px, transparent 1px);
+      background-size: 100% 100%, 48px 48px, 48px 48px;
+    }
+
+    .tabular-nums {
+      font-variant-numeric: tabular-nums;
+    }
+
+    .display-heading {
+      letter-spacing: -0.025em;
+    }
+
+    /* Framer + Notion Hybrid Surface & Card Styling */
+    .tether-surface {
+      background-color: #0D0E12;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.04);
+    }
+
+    .tether-card {
+      background-color: #12141A;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.045), 0 4px 20px rgba(0, 0, 0, 0.35);
+      border-radius: 14px;
+      transition: all 180ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .tether-card:hover {
+      border-color: rgba(255, 255, 255, 0.14);
+    }
+
+    .tether-card-interactive:hover {
+      background-color: #151820;
+      border-color: rgba(59, 130, 246, 0.38);
+      box-shadow:
+        inset 0 1px 0 0 rgba(255, 255, 255, 0.07),
+        0 8px 28px rgba(0, 0, 0, 0.5),
+        0 0 0 1px rgba(37, 99, 235, 0.15);
+      transform: translateY(-1px);
+    }
+
+    /* Cobalt Primary Button (Framer style) */
+    .btn-cobalt {
+      background: linear-gradient(180deg, #2563EB 0%, #1D4ED8 100%);
+      color: #FFFFFF;
+      border: 1px solid rgba(147, 197, 253, 0.28);
+      box-shadow:
+        inset 0 1px 0 0 rgba(255, 255, 255, 0.22),
+        0 2px 10px rgba(29, 78, 216, 0.38),
+        0 0 0 1px rgba(29, 78, 216, 0.5);
+      border-radius: 10px;
+      font-weight: 500;
+      transition: all 180ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .btn-cobalt:hover {
+      background: linear-gradient(180deg, #3B82F6 0%, #2563EB 100%);
+      box-shadow:
+        inset 0 1px 0 0 rgba(255, 255, 255, 0.28),
+        0 4px 18px rgba(37, 99, 235, 0.5),
+        0 0 0 1px rgba(59, 130, 246, 0.65);
+      transform: translateY(-1px);
+    }
+
+    .btn-cobalt:active {
+      transform: translateY(0);
+    }
+
+    /* Subtle Dark Button (Notion / Linear style) */
+    .btn-dark {
+      background-color: rgba(255, 255, 255, 0.04);
+      color: #E5E7EB;
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.04);
+      border-radius: 10px;
+      font-weight: 500;
+      transition: all 180ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .btn-dark:hover {
+      background-color: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.18);
+      color: #FFFFFF;
+    }
+
+    /* Keyboard Shortcut Keycap */
+    .kbd-hint {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      line-height: 1;
+      padding: 3px 5px;
+      border-radius: 5px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      color: #6B7280;
+    }
+
+    /* Notion-style Toggle Switch */
+    .switch-track {
+      width: 40px;
+      height: 22px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.09);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      position: relative;
+      transition: all 180ms cubic-bezier(0.22, 1, 0.36, 1);
+      cursor: pointer;
+    }
+
+    .switch-track.active {
+      background: #1D4ED8;
+      border-color: rgba(96, 165, 250, 0.5);
+      box-shadow: 0 0 12px rgba(37, 99, 235, 0.4);
+    }
+
+    .switch-thumb {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #F4F4F6;
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    }
+
+    .switch-track.active .switch-thumb {
+      transform: translateX(18px);
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #08080A;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(59, 130, 246, 0.45);
+    }
+
+    /* View & Toast Animations */
+    .view-enter {
+      animation: viewFade 190ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+
+    @keyframes viewFade {
+      from {
+        opacity: 0;
+        transform: translateY(4px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes toastSlide {
+      from {
+        opacity: 0;
+        transform: translateY(10px) scale(0.98);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    .toast-item {
+      animation: toastSlide 200ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+  </style>
+</head>
+<body class="framer-canvas min-h-screen text-[#F4F4F6] flex flex-col lg:flex-row selection:bg-[#2563EB]/35 selection:text-white">
+
+  <!-- Toast Notification Stack -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2.5 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
+
+  <!-- Mobile Top Header -->
+  <header class="lg:hidden flex items-center justify-between px-4 py-3 border-b border-white/[0.08] bg-[#0D0E12]/90 backdrop-blur-xl sticky top-0 z-30">
+    <div class="flex items-center gap-2.5">
+      <div class="w-7 h-7 rounded-lg bg-gradient-to-b from-[#2563EB] to-[#1D4ED8] border border-blue-300/30 flex items-center justify-center shadow-md shadow-blue-600/30">
+        <svg class="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+        </svg>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="font-semibold text-sm tracking-tight text-white">Tether</span>
+        <span class="text-[11px] text-gray-500">·</span>
+        <span class="text-[11px] font-medium text-blue-300 bg-blue-500/10 border border-blue-400/20 px-2 py-0.5 rounded-md">Safety Layer</span>
+      </div>
+    </div>
+    <button onclick="scrollToDemoBar()" class="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-[#2563EB]/15 border border-blue-400/30 text-blue-300 flex items-center gap-1.5">
+      <span class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
+      3-Min Demo
+    </button>
+  </header>
+
+  <!-- Mobile Bottom Navigation -->
+  <nav class="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-[#0D0E12]/95 backdrop-blur-xl border-t border-white/[0.08] px-1 py-1.5 flex justify-around items-center">
+    <button onclick="navigateTo('home')" data-nav="home" class="mobile-nav-btn flex flex-col items-center py-1 px-2 rounded-lg text-[11px] font-medium text-gray-400">
+      <svg class="w-4 h-4 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+      Home
+    </button>
+    <button onclick="navigateTo('tasks')" data-nav="tasks" class="mobile-nav-btn relative flex flex-col items-center py-1 px-2 rounded-lg text-[11px] font-medium text-gray-400">
+      <svg class="w-4 h-4 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+      Tasks
+      <span id="mobile-task-badge" class="hidden absolute top-0.5 right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-blue-500 text-white text-[10px] font-bold flex items-center justify-center tabular-nums">0</span>
+    </button>
+    <button onclick="navigateTo('approvals')" data-nav="approvals" class="mobile-nav-btn relative flex flex-col items-center py-1 px-2 rounded-lg text-[11px] font-medium text-gray-400">
+      <svg class="w-4 h-4 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+      Approvals
+      <span id="mobile-approval-badge" class="hidden absolute top-0.5 right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-amber-500 text-black text-[10px] font-bold flex items-center justify-center tabular-nums">3</span>
+    </button>
+    <button onclick="navigateTo('connections')" data-nav="connections" class="mobile-nav-btn flex flex-col items-center py-1 px-2 rounded-lg text-[11px] font-medium text-gray-400">
+      <svg class="w-4 h-4 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+      Apps
+    </button>
+    <button onclick="navigateTo('permissions')" data-nav="permissions" class="mobile-nav-btn flex flex-col items-center py-1 px-2 rounded-lg text-[11px] font-medium text-gray-400">
+      <svg class="w-4 h-4 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+      Rules
+    </button>
+    <button onclick="navigateTo('audit')" data-nav="audit" class="mobile-nav-btn flex flex-col items-center py-1 px-2 rounded-lg text-[11px] font-medium text-gray-400">
+      <svg class="w-4 h-4 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+      Log
+    </button>
+    <button onclick="navigateTo('recipes')" data-nav="recipes" class="mobile-nav-btn flex flex-col items-center py-1 px-2 rounded-lg text-[11px] font-medium text-gray-400">
+      <svg class="w-4 h-4 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+      Recipes
+    </button>
+  </nav>
+
+  <!-- Notion-Style Compact Left Sidebar (Desktop) -->
+  <aside class="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0 bg-[#0D0E12] border-r border-white/[0.08] px-3.5 py-4 justify-between z-20">
+    <div>
+      <!-- Workspace Switcher Header -->
+      <div class="flex items-center justify-between px-2 py-2 rounded-xl hover:bg-white/[0.04] transition-colors cursor-default mb-5">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="w-7 h-7 rounded-lg bg-gradient-to-b from-[#2563EB] to-[#1D4ED8] border border-blue-300/30 flex items-center justify-center shadow-sm shadow-blue-600/30 shrink-0">
+            <svg class="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+            </svg>
+          </div>
+          <div class="truncate">
+            <div class="text-[13px] font-semibold text-white tracking-tight truncate">Tether · Safety Layer</div>
+            <div id="sidebar-workspace-email" class="text-[11px] text-gray-500 truncate">Alex Lin's Workspace</div>
+          </div>
+        </div>
+        <span class="w-2 h-2 rounded-full bg-emerald-400 shrink-0" title="Guard Active"></span>
+      </div>
+
+      <!-- Navigation Section Label -->
+      <div class="px-2.5 mb-2 flex items-center justify-between">
+        <span class="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Control Center</span>
+        <span class="text-[10px] text-gray-600 font-mono">1–7</span>
+      </div>
+
+      <!-- Navigation Links -->
+      <nav class="space-y-0.5" aria-label="Primary Navigation">
+        <button onclick="navigateTo('home')" data-nav="home" class="sidebar-nav-btn w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-[13px] font-medium transition-all text-left">
+          <span class="flex items-center gap-2.5">
+            <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.85">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+            </svg>
+            <span>Home</span>
+          </span>
+          <span class="kbd-hint">1</span>
+        </button>
+
+        <button onclick="navigateTo('connections')" data-nav="connections" class="sidebar-nav-btn w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-[13px] font-medium transition-all text-left">
+          <span class="flex items-center gap-2.5">
+            <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.85">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+            </svg>
+            <span>Connections</span>
+          </span>
+          <span class="flex items-center gap-1.5">
+            <span id="sidebar-conn-count" class="text-[11px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 tabular-nums">4/4</span>
+            <span class="kbd-hint">2</span>
+          </span>
+        </button>
+
+        <button onclick="navigateTo('permissions')" data-nav="permissions" class="sidebar-nav-btn w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-[13px] font-medium transition-all text-left">
+          <span class="flex items-center gap-2.5">
+            <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.85">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+            <span>Permissions</span>
+          </span>
+          <span class="kbd-hint">3</span>
+        </button>
+
+        <button onclick="navigateTo('approvals')" data-nav="approvals" class="sidebar-nav-btn w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-[13px] font-medium transition-all text-left">
+          <span class="flex items-center gap-2.5">
+            <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.85">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>Approvals</span>
+          </span>
+          <span class="flex items-center gap-1.5">
+            <span id="sidebar-approval-badge" class="text-[11px] font-mono px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/25 font-semibold tabular-nums">3</span>
+            <span class="kbd-hint">4</span>
+          </span>
+        </button>
+
+        <button onclick="navigateTo('audit')" data-nav="audit" class="sidebar-nav-btn w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-[13px] font-medium transition-all text-left">
+          <span class="flex items-center gap-2.5">
+            <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.85">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+            <span>Audit Log</span>
+          </span>
+          <span class="kbd-hint">5</span>
+        </button>
+
+        <button onclick="navigateTo('recipes')" data-nav="recipes" class="sidebar-nav-btn w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-[13px] font-medium transition-all text-left">
+          <span class="flex items-center gap-2.5">
+            <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.85">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            <span>Recipes</span>
+          </span>
+          <span class="kbd-hint">6</span>
+        </button>
+
+        <button onclick="navigateTo('tasks')" data-nav="tasks" class="sidebar-nav-btn w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-[13px] font-medium transition-all text-left">
+          <span class="flex items-center gap-2.5">
+            <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.85">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            </svg>
+            <span>Smart Tasks</span>
+          </span>
+          <span class="flex items-center gap-1.5">
+            <span id="sidebar-task-badge" class="text-[11px] font-mono px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-300 border border-blue-500/25 font-semibold tabular-nums">0</span>
+            <span class="kbd-hint">7</span>
+          </span>
+        </button>
+      </nav>
+    </div>
+
+    <!-- Bottom Vault Status & Profile -->
+    <div class="space-y-3 pt-4 border-t border-white/[0.07]">
+      <div class="p-3 rounded-xl bg-[#12141A] border border-white/[0.08] shadow-inner">
+        <div class="flex items-center gap-2 mb-1.5">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.6)]"></span>
+          <span class="text-[11px] font-semibold text-gray-200 tracking-tight">Vault Status: Locked &amp; Encrypted</span>
+        </div>
+        <div class="text-[11px] font-mono text-blue-300/90 bg-blue-500/10 border border-blue-500/20 rounded-md px-2 py-1 inline-block mb-1.5">
+          Zero Tokens Exposed
+        </div>
+        <p class="text-[11px] leading-relaxed text-gray-400">
+          Your AI assistant never sees your passwords or login keys.
+        </p>
+      </div>
+
+      <div class="flex items-center justify-between px-2 py-1">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="w-7 h-7 rounded-full bg-[#1D4ED8]/25 border border-blue-400/30 flex items-center justify-center text-[11px] font-semibold text-blue-200 shrink-0">
+            AL
+          </div>
+          <div class="min-w-0">
+            <div class="text-xs font-medium text-gray-200 truncate">Alex Lin</div>
+            <div class="text-[11px] text-gray-500 truncate">alex.lin@university.edu</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Workspace Area -->
+  <main class="flex-1 lg:pl-64 pb-24 lg:pb-14">
+    <div class="max-w-5xl mx-auto px-4 sm:px-7 lg:px-10 pt-6 lg:pt-8">
+
+      <!-- Interactive 3-Minute Demo Story Bar (Framer-style Pinned Control Strip) -->
+      <div id="demo-story-bar" class="tether-card mb-8 overflow-hidden border-blue-500/25">
+        <div class="px-4 py-3 sm:px-5 sm:py-3.5 bg-gradient-to-r from-[#1D4ED8]/15 via-[#12141A] to-[#12141A] flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div class="flex items-start gap-3">
+            <div class="w-7 h-7 rounded-lg bg-[#2563EB]/20 border border-blue-400/30 flex items-center justify-center text-blue-400 shrink-0 mt-0.5">
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div>
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="text-xs font-semibold text-white tracking-tight">Interactive 3-Minute Walkthrough</span>
+                <span id="demo-status-pill" class="text-[11px] font-medium px-2 py-0.5 rounded-full bg-blue-500/12 text-blue-300 border border-blue-400/25">
+                  Ready to simulate
+                </span>
+              </div>
+              <p id="demo-caption" class="text-xs text-gray-400 mt-1 leading-relaxed">
+                Test Tether's guardrails live: run a student deadline request, trigger a hidden email trap, or revoke app access in one click.
+              </p>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2 self-end md:self-center shrink-0">
+            <button onclick="toggleDemoCollapse()" id="demo-collapse-btn" class="btn-dark text-[11px] px-2.5 py-1.5 text-gray-400 hover:text-white">
+              Hide Steps
+            </button>
+            <button onclick="resetDemoState()" class="btn-dark text-[11px] px-2.5 py-1.5 text-gray-300 hover:text-white flex items-center gap-1">
+              <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+              <span>Reset Demo</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="demo-steps-panel" class="px-4 py-3 sm:px-5 border-t border-white/[0.06] bg-[#0D0E12]/70 flex flex-wrap items-center gap-2">
+          <button onclick="runDemoStep1()" class="btn-dark hover:border-blue-400/45 text-xs px-3 py-1.5 flex items-center gap-2">
+            <span class="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+            <span>1. Student Deadline Flow</span>
+          </button>
+          <button onclick="runDemoStep2()" class="btn-dark hover:border-red-400/45 text-xs px-3 py-1.5 flex items-center gap-2">
+            <span class="w-1.5 h-1.5 rounded-full bg-red-400"></span>
+            <span>2. Simulate Hidden Instruction Attack</span>
+          </button>
+          <button onclick="runDemoStep3()" class="btn-dark hover:border-amber-400/45 text-xs px-3 py-1.5 flex items-center gap-2">
+            <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+            <span>3. Revoke Access in One Click</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Dynamic Screen Container -->
+      <div id="workspace-view" class="view-enter"></div>
+
+    </div>
+  </main>
+
+  <script>
+    // =========================================================================
+    // INITIAL STATE FACTORY (Supports instant Reset Demo)
+    // =========================================================================
+    function createInitialState() {
+      return {
+        currentTab: 'home',
+        demoCollapsed: false,
+        auditFilter: 'all',
+        auditSearch: '',
+        taskFilter: 'all',
+        oauthModalOpen: false,
+        scanning: false,
+        counters: { done: 0, waiting: 0, blocked: 0 },
+        connections: [],
+        permissions: { gmail: 'balanced', calendar: 'balanced', drive: 'balanced', tasks: 'handoff' },
+        approvals: [],
+        auditLog: [],
+        recipes: [],
+        tasks: [],
+        googleAuth: { configured: false, connected: false, email: '', redirectUri: '' },
+        autoScanEnabled: true,
+        lastScanAt: ''
+      };
+    }
+
+    let state = createInitialState();
+
+    function applyServerState(serverState) {
+      if (!serverState) return;
+      state.counters = serverState.counters || state.counters;
+      state.connections = serverState.connections || state.connections;
+      state.permissions = serverState.permissions || state.permissions;
+      state.approvals = serverState.approvals || state.approvals;
+      state.auditLog = serverState.auditLog || state.auditLog;
+      state.recipes = serverState.recipes || state.recipes;
+      state.tasks = serverState.tasks || state.tasks;
+      state.googleAuth = serverState.googleAuth || state.googleAuth;
+      if (typeof serverState.autoScanEnabled === 'boolean') {
+        state.autoScanEnabled = serverState.autoScanEnabled;
+      }
+      state.lastScanAt = serverState.lastScanAt || '';
+    }
+
+    async function apiCall(url, options = {}) {
+      const res = await fetch(url, {
+        headers: { 'Content-Type': 'application/json' },
+        ...options
+      });
+      const data = await res.json();
+      if (data.state) {
+        applyServerState(data.state);
+      }
+      if (!res.ok) {
+        throw new Error(data.error || 'Request failed');
+      }
+      return data;
+    }
+
+    async function refreshState() {
+      const data = await apiCall('/api/state');
+      applyServerState(data);
+      syncNavigationUI();
+      renderView();
+    }
+
+    // =========================================================================
+    // ICON & BADGE HELPERS
+    // =========================================================================
+    function getAppIcon(appName, size = 'w-4 h-4') {
+      const key = (appName || '').toLowerCase();
+      if (key.includes('gmail')) {
+        return `
+          <div class="w-9 h-9 rounded-xl bg-red-500/10 border border-red-500/25 flex items-center justify-center text-red-400 shrink-0">
+            <svg class="${size}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+          </div>`;
+      }
+      if (key.includes('calendar')) {
+        return `
+          <div class="w-9 h-9 rounded-xl bg-blue-500/12 border border-blue-400/25 flex items-center justify-center text-blue-400 shrink-0">
+            <svg class="${size}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </div>`;
+      }
+      if (key.includes('task')) {
+        return `
+          <div class="w-9 h-9 rounded-xl bg-emerald-500/12 border border-emerald-400/25 flex items-center justify-center text-emerald-400 shrink-0">
+            <svg class="${size}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            </svg>
+          </div>`;
+      }
+      if (key.includes('tether') || key.includes('manual') || key.includes('recipe')) {
+        return `
+          <div class="w-9 h-9 rounded-xl bg-indigo-500/12 border border-indigo-400/25 flex items-center justify-center text-indigo-300 shrink-0">
+            <svg class="${size}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+          </div>`;
+      }
+      return `
+        <div class="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-400/25 flex items-center justify-center text-amber-400 shrink-0">
+          <svg class="${size}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+          </svg>
+        </div>`;
+    }
+
+    function getDecisionBadge(decision) {
+      if (decision === 'Allowed') {
+        return `
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#10B981]/12 text-[#34D399] border border-[#10B981]/25">
+            <span class="w-1.5 h-1.5 rounded-full bg-[#10B981]"></span>Allowed
+          </span>`;
+      }
+      if (decision === 'Waiting') {
+        return `
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#F59E0B]/12 text-[#FBBF24] border border-[#F59E0B]/25">
+            <span class="w-1.5 h-1.5 rounded-full bg-[#F59E0B]"></span>Waiting
+          </span>`;
+      }
+      return `
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#EF4444]/12 text-[#F87171] border border-[#EF4444]/25">
+          <span class="w-1.5 h-1.5 rounded-full bg-[#EF4444]"></span>Blocked
+        </span>`;
+    }
+
+    // =========================================================================
+    // TOAST SYSTEM (Zero alert() calls)
+    // =========================================================================
+    function showToast(title, message, variant = 'blue') {
+      const container = document.getElementById('toast-container');
+      const id = 'toast-' + Date.now() + Math.random().toString(36).slice(2, 6);
+
+      const variants = {
+        blue: 'bg-[#12141A]/95 border-blue-500/35 text-gray-100',
+        green: 'bg-[#12141A]/95 border-emerald-500/35 text-gray-100',
+        amber: 'bg-[#12141A]/95 border-amber-500/35 text-gray-100',
+        red: 'bg-[#161014]/95 border-red-500/45 text-gray-100'
+      };
+
+      const dots = {
+        blue: 'bg-blue-400',
+        green: 'bg-emerald-400',
+        amber: 'bg-amber-400',
+        red: 'bg-red-400'
+      };
+
+      const el = document.createElement('div');
+      el.id = id;
+      el.className = `toast-item pointer-events-auto p-3.5 rounded-xl border shadow-2xl backdrop-blur-xl ${variants[variant] || variants.blue}`;
+      el.innerHTML = `
+        <div class="flex items-start justify-between gap-3">
+          <div class="flex items-start gap-2.5">
+            <span class="w-2 h-2 rounded-full mt-1.5 shrink-0 ${dots[variant] || dots.blue}"></span>
+            <div>
+              <div class="text-xs font-semibold text-white">${title}</div>
+              <div class="text-[11px] text-gray-400 mt-0.5 leading-relaxed">${message}</div>
+            </div>
+          </div>
+          <button onclick="document.getElementById('${id}')?.remove()" class="text-gray-500 hover:text-gray-200 text-xs px-1">✕</button>
+        </div>
+      `;
+      container.appendChild(el);
+
+      setTimeout(() => {
+        const node = document.getElementById(id);
+        if (node) {
+          node.style.opacity = '0';
+          node.style.transform = 'translateY(6px)';
+          node.style.transition = 'all 180ms ease';
+          setTimeout(() => node.remove(), 190);
+        }
+      }, 4500);
+    }
+
+    // =========================================================================
+    // NAVIGATION & KEYBOARD SHORTCUTS (1–7)
+    // =========================================================================
+    function syncNavigationUI() {
+      const pendingCount = state.approvals.length;
+      state.counters.waiting = pendingCount;
+
+      const sideBadge = document.getElementById('sidebar-approval-badge');
+      const mobBadge = document.getElementById('mobile-approval-badge');
+
+      if (sideBadge) {
+        sideBadge.textContent = pendingCount;
+        sideBadge.classList.toggle('hidden', pendingCount === 0);
+      }
+      if (mobBadge) {
+        mobBadge.textContent = pendingCount;
+        mobBadge.classList.toggle('hidden', pendingCount === 0);
+      }
+
+      const openTasksCount = state.tasks.filter(t => t.status !== 'done' && t.status !== 'dismissed').length;
+      const sideTaskBadge = document.getElementById('sidebar-task-badge');
+      const mobTaskBadge = document.getElementById('mobile-task-badge');
+      if (sideTaskBadge) {
+        sideTaskBadge.textContent = openTasksCount;
+        sideTaskBadge.classList.toggle('hidden', openTasksCount === 0);
+      }
+      if (mobTaskBadge) {
+        mobTaskBadge.textContent = openTasksCount;
+        mobTaskBadge.classList.toggle('hidden', openTasksCount === 0);
+      }
+
+      const totalConns = state.connections.length || 4;
+      const activeConns = state.connections.filter(c => c.status === 'connected').length;
+      const connBadge = document.getElementById('sidebar-conn-count');
+      if (connBadge) {
+        connBadge.textContent = `${activeConns}/${totalConns}`;
+        connBadge.className = activeConns === totalConns
+          ? 'text-[11px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 tabular-nums'
+          : 'text-[11px] font-mono px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/25 tabular-nums';
+      }
+
+      const wsEmail = document.getElementById('sidebar-workspace-email');
+      if (wsEmail && state.googleAuth && state.googleAuth.email) {
+        wsEmail.textContent = state.googleAuth.email;
+      }
+
+      // Sidebar active state (Notion + Cobalt accent pill)
+      document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
+        const active = btn.getAttribute('data-nav') === state.currentTab;
+        if (active) {
+          btn.className = 'sidebar-nav-btn w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-[13px] font-medium bg-[#2563EB]/14 text-[#93C5FD] border border-blue-500/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition-all text-left';
+        } else {
+          btn.className = 'sidebar-nav-btn w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-[13px] font-medium text-gray-400 hover:text-gray-100 hover:bg-white/[0.04] border border-transparent transition-all text-left';
+        }
+      });
+
+      document.querySelectorAll('.mobile-nav-btn').forEach(btn => {
+        const active = btn.getAttribute('data-nav') === state.currentTab;
+        btn.classList.toggle('text-blue-400', active);
+        btn.classList.toggle('font-semibold', active);
+        btn.classList.toggle('text-gray-400', !active);
+      });
+    }
+
+    function navigateTo(tab) {
+      state.currentTab = tab;
+      syncNavigationUI();
+      renderView();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
+      const map = {
+        '1': 'home',
+        '2': 'connections',
+        '3': 'permissions',
+        '4': 'approvals',
+        '5': 'audit',
+        '6': 'recipes',
+        '7': 'tasks'
+      };
+      if (map[e.key]) {
+        navigateTo(map[e.key]);
+      }
+    });
+
+    // =========================================================================
+    // 3-MINUTE DEMO STORY ACTIONS
+    // =========================================================================
+    function scrollToDemoBar() {
+      const bar = document.getElementById('demo-story-bar');
+      bar.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (state.demoCollapsed) toggleDemoCollapse();
+    }
+
+    function toggleDemoCollapse() {
+      state.demoCollapsed = !state.demoCollapsed;
+      const panel = document.getElementById('demo-steps-panel');
+      const btn = document.getElementById('demo-collapse-btn');
+      panel.classList.toggle('hidden', state.demoCollapsed);
+      btn.textContent = state.demoCollapsed ? 'Show Steps' : 'Hide Steps';
+    }
+
+    async function resetDemoState() {
+      try {
+        await apiCall('/api/demo/reset', { method: 'POST' });
+        document.getElementById('demo-status-pill').textContent = 'Workspace reset';
+        document.getElementById('demo-caption').textContent =
+          'Restored initial workspace in SQLite: connected apps, pending approvals, smart task suggestions, and audit logs.';
+        syncNavigationUI();
+        renderView();
+        showToast('Workspace reset', 'All counters, approvals, tasks, and connections restored in database.', 'blue');
+      } catch (err) {
+        showToast('Reset failed', err.message, 'red');
+      }
+    }
+
+    async function runDemoStep1() {
+      try {
+        await apiCall('/api/demo/step1', { method: 'POST' });
+        document.getElementById('demo-status-pill').textContent = 'Step 1 · Student Deadline Flow';
+        document.getElementById('demo-caption').textContent =
+          'Agent read the Lab Instructor email automatically (+1 Done), suggested a Smart Task, and paused the Calendar deadline in Approvals.';
+        showToast(
+          'Email read · Task suggested & write queued',
+          'Tether auto-allowed reading the email, suggested a Smart Task, and held the Calendar event for sign-off.',
+          'amber'
+        );
+        navigateTo('approvals');
+      } catch (err) {
+        showToast('Simulation error', err.message, 'red');
+      }
+    }
+
+    async function runDemoStep2() {
+      try {
+        await apiCall('/api/demo/step3', { method: 'POST' });
+        document.getElementById('demo-status-pill').textContent = 'Step 2 · Hidden Instruction Blocked';
+        document.getElementById('demo-caption').textContent =
+          'Intercepted an incoming email with hidden text ordering your AI to forward all Drive files to external@collector.io. Blocked immediately.';
+        showToast(
+          'Security Alert: Hidden instruction blocked',
+          'Blocked an attempt hidden inside an email to forward your Drive files to external@collector.io.',
+          'red'
+        );
+        navigateTo('audit');
+      } catch (err) {
+        showToast('Simulation error', err.message, 'red');
+      }
+    }
+
+    function runDemoStep3() {
+      document.getElementById('demo-status-pill').textContent = 'Step 3 · One-Click Revocation';
+      document.getElementById('demo-caption').textContent =
+        'Inspecting Connected Apps. Click "Revoke Access" on any app or configure Google Workspace OAuth2 for live sync.';
+      showToast(
+        'Connected Apps ready',
+        'Click "Revoke Access" on any app card or connect live Google Workspace OAuth2.',
+        'blue'
+      );
+      navigateTo('connections');
+    }
+
+    // =========================================================================
+    // INTERACTIVE FEATURE HANDLERS (API-BACKED)
+    // =========================================================================
+    async function handleApprovalAction(id, isApproved) {
+      try {
+        const res = await apiCall(`/api/approvals/${id}/decide`, {
+          method: 'POST',
+          body: JSON.stringify({ approved: isApproved })
+        });
+        syncNavigationUI();
+        renderView();
+        if (isApproved) {
+          showToast('Action approved', res.executionResult?.detail || 'Approved and executed safely.', 'green');
+        } else {
+          showToast('Action denied', 'Blocked and recorded in Audit Log.', 'red');
+        }
+      } catch (err) {
+        showToast('Approval error', err.message, 'red');
+      }
+    }
+
+    async function toggleAppConnection(appId) {
+      try {
+        const res = await apiCall(`/api/connections/${appId}/toggle`, { method: 'POST' });
+        syncNavigationUI();
+        renderView();
+        if (res.status === 'connected') {
+          showToast('App reconnected', 'Connected cleanly with zero tokens exposed to the AI.', 'green');
+        } else {
+          showToast('Access revoked', 'Your AI agent can no longer read or write to this app.', 'red');
+        }
+      } catch (err) {
+        showToast('Connection error', err.message, 'red');
+      }
+    }
+
+    async function setPermissionPreset(appId, preset) {
+      if (state.permissions[appId] === preset) return;
+      try {
+        await apiCall(`/api/permissions/${appId}`, {
+          method: 'POST',
+          body: JSON.stringify({ preset })
+        });
+        syncNavigationUI();
+        renderView();
+        showToast('Permission updated', `Updated ${appId} policy to ${preset}.`, 'blue');
+      } catch (err) {
+        showToast('Permission error', err.message, 'red');
+      }
+    }
+
+    async function toggleRecipeState(recipeId) {
+      try {
+        await apiCall(`/api/recipes/${recipeId}/toggle`, { method: 'POST' });
+        syncNavigationUI();
+        renderView();
+        showToast('Recipe updated', 'Automation rule state saved.', 'blue');
+      } catch (err) {
+        showToast('Recipe error', err.message, 'red');
+      }
+    }
+
+    async function runRecipeTest(recipeId) {
+      try {
+        await apiCall(`/api/recipes/${recipeId}/run`, { method: 'POST' });
+        syncNavigationUI();
+        renderView();
+        showToast(
+          'Recipe executed',
+          'Safe read steps finished automatically; the write step is now waiting in Approvals.',
+          'amber'
+        );
+      } catch (err) {
+        showToast('Recipe paused', err.message, 'red');
+      }
+    }
+
+    // =========================================================================
+    // SMART TASK & GOOGLE OAUTH HANDLERS
+    // =========================================================================
+    function setTaskFilter(filterVal) {
+      state.taskFilter = filterVal;
+      renderView();
+    }
+
+    async function runSmartScan() {
+      if (state.scanning) return;
+      state.scanning = true;
+      renderView();
+      try {
+        const res = await apiCall('/api/tasks/scan', { method: 'POST' });
+        state.scanning = false;
+        syncNavigationUI();
+        renderView();
+        const count = res.newlySuggested?.length || 0;
+        showToast(
+          res.live ? 'Live Google Workspace Scan Complete' : 'Smart Workspace Scan Complete',
+          count > 0
+            ? `Suggested ${count} new task${count === 1 ? '' : 's'} from your connected apps.`
+            : 'No new actionable items found — your task board is up to date.',
+          count > 0 ? 'green' : 'blue'
+        );
+      } catch (err) {
+        state.scanning = false;
+        renderView();
+        showToast('Scan error', err.message, 'red');
+      }
+    }
+
+    async function parseSmartTasks(e) {
+      if (e) e.preventDefault();
+      const textarea = document.getElementById('smart-parse-input');
+      const sourceSel = document.getElementById('smart-parse-source');
+      const text = textarea ? textarea.value.trim() : '';
+      if (!text) {
+        showToast('Input required', 'Paste an email, note, or prompt to extract smart tasks.', 'amber');
+        return;
+      }
+      try {
+        const res = await apiCall('/api/tasks/parse', {
+          method: 'POST',
+          body: JSON.stringify({ text, sourceApp: sourceSel ? sourceSel.value : 'manual' })
+        });
+        if (textarea) textarea.value = '';
+        syncNavigationUI();
+        renderView();
+        showToast(
+          'Smart tasks extracted',
+          `Suggested ${res.tasks?.length || 0} task(s) from your input.`,
+          'green'
+        );
+      } catch (err) {
+        syncNavigationUI();
+        renderView();
+        showToast('Blocked by Tether Safety Guard', err.message, 'red');
+      }
+    }
+
+    async function createManualTask(e) {
+      if (e) e.preventDefault();
+      const titleEl = document.getElementById('new-task-title');
+      const prioEl = document.getElementById('new-task-priority');
+      const dueEl = document.getElementById('new-task-due');
+      const syncEl = document.getElementById('new-task-sync');
+
+      const title = titleEl ? titleEl.value.trim() : '';
+      if (!title) {
+        showToast('Task title required', 'Enter a task title first.', 'amber');
+        return;
+      }
+      try {
+        await apiCall('/api/tasks', {
+          method: 'POST',
+          body: JSON.stringify({
+            title,
+            priority: prioEl ? prioEl.value : 'medium',
+            due_at: dueEl ? dueEl.value : '',
+            syncToGoogle: syncEl ? syncEl.checked : false
+          })
+        });
+        if (titleEl) titleEl.value = '';
+        syncNavigationUI();
+        renderView();
+        showToast('Task saved', `"${title}" added to your task board.`, 'green');
+      } catch (err) {
+        syncNavigationUI();
+        renderView();
+        showToast('Could not create task', err.message, 'red');
+      }
+    }
+
+    async function acceptSuggestedTask(taskId, queueCalendar = false) {
+      try {
+        const res = await apiCall(`/api/tasks/${taskId}/accept`, {
+          method: 'POST',
+          body: JSON.stringify({ syncToGoogle: true, queueCalendar })
+        });
+        syncNavigationUI();
+        renderView();
+        if (res.queuedApproval) {
+          showToast(
+            'Task accepted · Write queued',
+            'Saved to your Task Board and queued the external sync/event in Approvals.',
+            'amber'
+          );
+        } else {
+          showToast(
+            'Task accepted',
+            res.googleSynced ? 'Saved to Task Board & synced to Google Tasks.' : 'Saved to your active Task Board.',
+            'green'
+          );
+        }
+      } catch (err) {
+        showToast('Error', err.message, 'red');
+      }
+    }
+
+    async function updateTaskStatus(taskId, status) {
+      try {
+        await apiCall(`/api/tasks/${taskId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ status })
+        });
+        syncNavigationUI();
+        renderView();
+        if (status === 'done') {
+          showToast('Task completed', 'Marked done and synced.', 'green');
+        } else if (status === 'dismissed') {
+          showToast('Suggestion dismissed', 'Removed from active suggestions.', 'blue');
+        }
+      } catch (err) {
+        showToast('Update error', err.message, 'red');
+      }
+    }
+
+    async function deleteTaskItem(taskId) {
+      try {
+        await apiCall(`/api/tasks/${taskId}`, { method: 'DELETE' });
+        syncNavigationUI();
+        renderView();
+        showToast('Task deleted', 'Removed from local database.', 'blue');
+      } catch (err) {
+        showToast('Delete error', err.message, 'red');
+      }
+    }
+
+    async function toggleAutoScan() {
+      try {
+        await apiCall('/api/settings/autoscan', {
+          method: 'POST',
+          body: JSON.stringify({ enabled: !state.autoScanEnabled })
+        });
+        renderView();
+        showToast(
+          state.autoScanEnabled ? 'Auto-Scan enabled' : 'Auto-Scan paused',
+          state.autoScanEnabled ? 'Tether will periodically scan connected apps for new tasks.' : 'Automatic background scanning paused.',
+          'blue'
+        );
+      } catch (err) {
+        showToast('Setting error', err.message, 'red');
+      }
+    }
+
+    function toggleOAuthModal(open) {
+      state.oauthModalOpen = open;
+      renderView();
+    }
+
+    async function saveGoogleOAuthConfig(e) {
+      if (e) e.preventDefault();
+      const clientId = document.getElementById('oauth-client-id')?.value.trim() || '';
+      const clientSecret = document.getElementById('oauth-client-secret')?.value.trim() || '';
+      try {
+        const res = await apiCall('/api/auth/google/config', {
+          method: 'POST',
+          body: JSON.stringify({ clientId, clientSecret })
+        });
+        state.googleAuth = res.googleAuth;
+        state.oauthModalOpen = false;
+        renderView();
+        showToast('OAuth2 credentials saved', 'Click "Authorize Google Workspace" to connect your account.', 'green');
+      } catch (err) {
+        showToast('Config error', err.message, 'red');
+      }
+    }
+
+    async function startGoogleOAuth() {
+      try {
+        const res = await apiCall('/api/auth/google/url');
+        window.location.href = res.url;
+      } catch (err) {
+        state.oauthModalOpen = true;
+        renderView();
+        showToast('Configure OAuth2 first', err.message, 'amber');
+      }
+    }
+
+    async function disconnectGoogleOAuth() {
+      try {
+        await apiCall('/api/auth/google/disconnect', { method: 'POST' });
+        syncNavigationUI();
+        renderView();
+        showToast('Google Workspace disconnected', 'OAuth session cleared from local vault.', 'amber');
+      } catch (err) {
+        showToast('Disconnect error', err.message, 'red');
+      }
+    }
+
+    // =========================================================================
+    // SCREEN RENDERING ENGINE
+    // =========================================================================
+    function renderView() {
+      const container = document.getElementById('workspace-view');
+      container.classList.remove('view-enter');
+      void container.offsetWidth;
+      container.classList.add('view-enter');
+
+      switch (state.currentTab) {
+        case 'home':
+          container.innerHTML = renderHomeScreen();
+          break;
+        case 'tasks':
+          container.innerHTML = renderTasksScreen();
+          break;
+        case 'connections':
+          container.innerHTML = renderConnectionsScreen();
+          break;
+        case 'permissions':
+          container.innerHTML = renderPermissionsScreen();
+          break;
+        case 'approvals':
+          container.innerHTML = renderApprovalsScreen();
+          break;
+        case 'audit':
+          container.innerHTML = renderAuditScreen();
+          break;
+        case 'recipes':
+          container.innerHTML = renderRecipesScreen();
+          break;
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // SCREEN 1: HOME
+    // -------------------------------------------------------------------------
+    function renderHomeScreen() {
+      const feed = state.auditLog.slice(0, 7);
+
+      return `
+        <!-- Notion-Inspired Clean Page Header -->
+        <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-7">
+          <div>
+            <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-[#2563EB]/12 border border-blue-400/25 text-[#93C5FD] text-xs font-medium mb-3">
+              <span class="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+              <span>Workspace Guard Active</span>
+            </div>
+            <h1 class="text-2xl sm:text-3xl font-bold text-white display-heading">Control Overview</h1>
+            <p class="text-sm text-gray-400 mt-1">
+              Reads run automatically across Gmail, Calendar, and Drive. Changes wait for your sign-off.
+            </p>
+          </div>
+
+          ${state.approvals.length > 0 ? `
+            <button onclick="navigateTo('approvals')" class="btn-cobalt text-xs px-4 py-2.5 flex items-center gap-2 self-start sm:self-auto shrink-0">
+              <span>Review ${state.approvals.length} Waiting Action${state.approvals.length === 1 ? '' : 's'}</span>
+              <span class="text-blue-200">→</span>
+            </button>
+          ` : ''}
+        </div>
+
+        <!-- 3 Crisp Metric Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+          <div onclick="navigateTo('audit')" class="tether-card tether-card-interactive p-5 cursor-pointer">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-xs font-medium text-gray-400">Done Automatically</span>
+              <span class="w-7 h-7 rounded-lg bg-[#10B981]/12 border border-[#10B981]/25 flex items-center justify-center text-[#34D399]">
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+              </span>
+            </div>
+            <div class="text-3xl font-bold text-white tabular-nums display-heading">${state.counters.done}</div>
+            <p class="text-xs text-gray-500 mt-1.5">Safe reads &amp; approved tasks completed</p>
+          </div>
+
+          <div onclick="navigateTo('approvals')" class="tether-card tether-card-interactive p-5 cursor-pointer">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-xs font-medium text-gray-400">Waiting for Approval</span>
+              <span class="w-7 h-7 rounded-lg bg-[#F59E0B]/12 border border-[#F59E0B]/25 flex items-center justify-center text-[#FBBF24]">
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              </span>
+            </div>
+            <div class="text-3xl font-bold text-white tabular-nums display-heading">${state.counters.waiting}</div>
+            <p class="text-xs text-gray-500 mt-1.5">Writes paused for your confirmation</p>
+          </div>
+
+          <div onclick="navigateTo('audit')" class="tether-card tether-card-interactive p-5 cursor-pointer">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-xs font-medium text-gray-400">Blocked &amp; Logged</span>
+              <span class="w-7 h-7 rounded-lg bg-[#EF4444]/12 border border-[#EF4444]/25 flex items-center justify-center text-[#F87171]">
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+              </span>
+            </div>
+            <div class="text-3xl font-bold text-white tabular-nums display-heading">${state.counters.blocked}</div>
+            <p class="text-xs text-gray-500 mt-1.5">Hidden email traps &amp; risky actions stopped</p>
+          </div>
+        </div>
+
+        <!-- Smart Task Suggestions Card (Home Quick Actions) -->
+        ${(() => {
+          const suggested = state.tasks.filter(t => t.status === 'suggested').slice(0, 3);
+          return `
+            <div class="tether-card overflow-hidden mb-6 border-blue-500/20">
+              <div class="px-5 py-4 border-b border-white/[0.07] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div class="flex items-center gap-2.5">
+                  <span class="w-7 h-7 rounded-lg bg-[#2563EB]/20 border border-blue-400/30 flex items-center justify-center text-blue-400">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                  </span>
+                  <div>
+                    <h2 class="text-sm font-semibold text-white">Smart Task Suggestions</h2>
+                    <p class="text-xs text-gray-500">Auto-detected from Gmail, Calendar, Drive &amp; Tasks</p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2">
+                  <button onclick="runSmartScan()" class="btn-dark text-xs px-3 py-1.5 hover:border-blue-400/40">
+                    ${state.scanning ? 'Scanning...' : 'Scan Workspace'}
+                  </button>
+                  <button onclick="navigateTo('tasks')" class="text-xs font-medium text-blue-400 hover:text-blue-300 px-2 py-1">
+                    Open Task Board →
+                  </button>
+                </div>
+              </div>
+              ${suggested.length === 0 ? `
+                <div class="px-5 py-6 text-center text-xs text-gray-400">
+                  No pending suggestions. Click <strong class="text-gray-200">Scan Workspace</strong> or open <strong class="text-gray-200">Smart Tasks</strong> to extract tasks from any email or note.
+                </div>
+              ` : `
+                <div class="divide-y divide-white/[0.06]">
+                  ${suggested.map(t => `
+                    <div class="px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-white/[0.02] transition-colors">
+                      <div class="flex items-start gap-3 min-w-0">
+                        ${getAppIcon(t.source_app)}
+                        <div class="min-w-0">
+                          <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-300 border border-blue-400/25">${t.confidence || 90}% match</span>
+                            <span class="text-[13px] font-medium text-white truncate">${t.title}</span>
+                          </div>
+                          <p class="text-xs text-gray-400 mt-0.5">${t.suggested_reason || t.description}</p>
+                        </div>
+                      </div>
+                      <div class="flex items-center gap-2 shrink-0 pl-12 sm:pl-0">
+                        <button onclick="updateTaskStatus('${t.id}', 'dismissed')" class="btn-dark text-[11px] px-2.5 py-1.5">Dismiss</button>
+                        <button onclick="acceptSuggestedTask('${t.id}', false)" class="btn-cobalt text-[11px] px-3 py-1.5">Accept Task</button>
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>
+              `}
+            </div>
+          `;
+        })()}
+
+        <!-- Live Activity Feed (Notion Database Row Aesthetic) -->
+        <div class="tether-card overflow-hidden">
+          <div class="px-5 py-4 border-b border-white/[0.07] flex items-center justify-between">
+            <div>
+              <h2 class="text-sm font-semibold text-white">Live Activity Feed</h2>
+              <p class="text-xs text-gray-500 mt-0.5">Click any waiting item to review and approve it</p>
+            </div>
+            <button onclick="navigateTo('audit')" class="text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors">
+              Full Audit Log →
+            </button>
+          </div>
+
+          <div class="divide-y divide-white/[0.06]">
+            ${feed.map(item => {
+              const isWaiting = item.decision === 'Waiting';
+              return `
+                <div
+                  ${isWaiting ? `onclick="navigateTo('approvals')"` : ''}
+                  class="px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors ${
+                    isWaiting ? 'cursor-pointer hover:bg-[#2563EB]/[0.06]' : 'hover:bg-white/[0.02]'
+                  }"
+                >
+                  <div class="flex items-start gap-3.5 min-w-0">
+                    ${getAppIcon(item.app)}
+                    <div class="min-w-0">
+                      <div class="flex flex-wrap items-center gap-2">
+                        ${getDecisionBadge(item.decision)}
+                        <span class="text-[13px] font-medium text-gray-100 truncate">${item.action}</span>
+                      </div>
+                      <p class="text-xs text-gray-400 mt-1 leading-relaxed">${item.reason}</p>
+                    </div>
+                  </div>
+
+                  <div class="flex items-center justify-between sm:justify-end gap-3 shrink-0 pl-12 sm:pl-0">
+                    <span class="text-[11px] text-gray-500 tabular-nums">${item.time}</span>
+                    ${isWaiting ? `
+                      <span class="text-[11px] font-medium text-blue-400 bg-blue-500/10 border border-blue-400/20 px-2 py-0.5 rounded-md">
+                        Review →
+                      </span>
+                    ` : ''}
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    // -------------------------------------------------------------------------
+    // SCREEN 2: CONNECTIONS
+    // -------------------------------------------------------------------------
+    function renderConnectionsScreen() {
+      const auth = state.googleAuth || {};
+      return `
+        <div class="mb-7">
+          <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-[#2563EB]/12 border border-blue-400/25 text-[#93C5FD] text-xs font-medium mb-3">
+            <span>Least-Privilege App Vault</span>
+          </div>
+          <h1 class="text-2xl sm:text-3xl font-bold text-white display-heading">Connected Apps</h1>
+          <p class="text-sm text-gray-400 mt-1">
+            Connect once. Tether locks your keys inside an encrypted local vault so your AI assistant never sees your login credentials.
+          </p>
+        </div>
+
+        <!-- Google Workspace OAuth2 Integration Banner -->
+        <div class="tether-card p-5 mb-5 border-blue-500/25 bg-gradient-to-r from-[#1D4ED8]/12 via-[#12141A] to-[#12141A]">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div class="flex items-start gap-3.5">
+              <div class="w-10 h-10 rounded-xl bg-[#2563EB]/20 border border-blue-400/30 flex items-center justify-center text-blue-300 shrink-0">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                </svg>
+              </div>
+              <div>
+                <div class="flex flex-wrap items-center gap-2">
+                  <h3 class="text-sm font-semibold text-white">Google Workspace OAuth2 Bridge</h3>
+                  ${auth.connected
+                    ? `<span class="text-[11px] px-2 py-0.5 rounded-full bg-[#10B981]/15 text-[#34D399] border border-[#10B981]/30">Live Connected · ${auth.email || 'Workspace'}</span>`
+                    : auth.configured
+                      ? `<span class="text-[11px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-400/30">Configured · Ready to Authorize</span>`
+                      : `<span class="text-[11px] px-2 py-0.5 rounded-full bg-white/[0.06] text-gray-300 border border-white/[0.1]">Local Sandbox Mode</span>`
+                  }
+                </div>
+                <p class="text-xs text-gray-400 mt-1 leading-relaxed">
+                  ${auth.connected
+                    ? 'Live scanning and approval-gated execution are active across Gmail, Calendar, Drive, and Google Tasks.'
+                    : 'Add your Google Cloud OAuth2 Client ID & Secret to enable live Gmail, Calendar, Drive, and Google Tasks syncing.'}
+                </p>
+              </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-2 shrink-0">
+              <button onclick="toggleOAuthModal(${!state.oauthModalOpen})" class="btn-dark text-xs px-3 py-2">
+                ${state.oauthModalOpen ? 'Close Setup' : 'Configure OAuth2'}
+              </button>
+              ${auth.connected
+                ? `<button onclick="disconnectGoogleOAuth()" class="text-xs px-3 py-2 rounded-lg bg-[#EF4444]/10 hover:bg-[#EF4444]/20 text-[#F87171] border border-[#EF4444]/25">Disconnect</button>`
+                : `<button onclick="startGoogleOAuth()" class="btn-cobalt text-xs px-3.5 py-2">Authorize Google Workspace</button>`
+              }
+            </div>
+          </div>
+
+          ${state.oauthModalOpen ? `
+            <form onsubmit="saveGoogleOAuthConfig(event)" class="mt-4 pt-4 border-t border-white/[0.08] grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div class="md:col-span-2 text-[11px] text-gray-400 bg-[#08080A] border border-white/[0.07] rounded-lg px-3 py-2">
+                Add this Redirect URI in Google Cloud Console: <code class="text-blue-300 font-mono">${auth.redirectUri || 'http://localhost:3000/api/auth/google/callback'}</code>
+              </div>
+              <div>
+                <label class="block text-[11px] text-gray-400 mb-1">Google Client ID</label>
+                <input id="oauth-client-id" type="text" placeholder="1234567890-xxx.apps.googleusercontent.com" class="w-full px-3 py-2 rounded-lg bg-[#08080A] border border-white/[0.1] text-xs text-white focus:outline-none focus:border-blue-500" required />
+              </div>
+              <div>
+                <label class="block text-[11px] text-gray-400 mb-1">Google Client Secret</label>
+                <input id="oauth-client-secret" type="password" placeholder="GOCSPX-..." class="w-full px-3 py-2 rounded-lg bg-[#08080A] border border-white/[0.1] text-xs text-white focus:outline-none focus:border-blue-500" required />
+              </div>
+              <div class="md:col-span-2 flex justify-end gap-2">
+                <button type="button" onclick="toggleOAuthModal(false)" class="btn-dark text-xs px-3 py-1.5">Cancel</button>
+                <button type="submit" class="btn-cobalt text-xs px-4 py-1.5">Save Credentials</button>
+              </div>
+            </form>
+          ` : ''}
+        </div>
+
+        <!-- Credential Isolation Callout -->
+        <div class="tether-card p-4 mb-6 flex items-center gap-3.5 border-blue-500/20 bg-[#0D0E12]">
+          <div class="w-9 h-9 rounded-xl bg-[#2563EB]/15 border border-blue-400/25 flex items-center justify-center text-blue-400 shrink-0">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+          <div>
+            <div class="text-xs font-semibold text-white">Credentials: Stored in local SQLite vault (AI never sees tokens)</div>
+            <p class="text-xs text-gray-400 mt-0.5">
+              Your AI only sees the exact text or calendar data Tether approves — never passwords, session cookies, or access keys.
+            </p>
+          </div>
+        </div>
+
+        <!-- App Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          ${state.connections.map(conn => {
+            const isConnected = conn.status === 'connected';
+            return `
+              <div class="tether-card p-5 flex flex-col justify-between">
+                <div>
+                  <div class="flex items-start justify-between gap-2 mb-4">
+                    <div class="flex items-center gap-3">
+                      ${getAppIcon(conn.id)}
+                      <div>
+                        <h3 class="text-sm font-semibold text-white">${conn.name}</h3>
+                        <p class="text-[11px] text-gray-500">${conn.account}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="mb-4">
+                    ${isConnected
+                      ? `<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#10B981]/12 text-[#34D399] border border-[#10B981]/25"><span class="w-1.5 h-1.5 rounded-full bg-[#10B981]"></span>Connected</span>`
+                      : `<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#EF4444]/12 text-[#F87171] border border-[#EF4444]/25"><span class="w-1.5 h-1.5 rounded-full bg-[#EF4444]"></span>Revoked</span>`
+                    }
+                  </div>
+
+                  <div class="space-y-3.5 text-xs border-t border-white/[0.07] pt-4">
+                    <div>
+                      <div class="text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-1">What Tether can access</div>
+                      <div class="text-gray-100 font-medium leading-relaxed">${conn.scopeSummary}</div>
+                      <div class="font-mono text-[11px] text-blue-300/80 bg-[#08080A] border border-white/[0.06] rounded-md px-2 py-1 mt-1.5">
+                        ${conn.scopeCode}
+                      </div>
+                      <p class="text-[11px] text-gray-500 mt-1.5 leading-relaxed">${conn.restrictionNote}</p>
+                    </div>
+
+                    <div class="flex items-center justify-between text-[11px] text-gray-500 pt-0.5">
+                      <span>Last used</span>
+                      <span class="tabular-nums text-gray-400">${conn.lastUsed}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="mt-5 pt-4 border-t border-white/[0.07]">
+                  ${isConnected
+                    ? `<button onclick="toggleAppConnection('${conn.id}')" class="w-full py-2 px-3.5 rounded-lg text-xs font-medium bg-[#EF4444]/10 hover:bg-[#EF4444]/20 text-[#F87171] border border-[#EF4444]/25 transition-all">
+                        Revoke Access
+                      </button>`
+                    : `<button onclick="toggleAppConnection('${conn.id}')" class="w-full btn-cobalt py-2 px-3.5 text-xs">
+                        Reconnect ${conn.name}
+                      </button>`
+                  }
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    }
+
+    // -------------------------------------------------------------------------
+    // SCREEN 3: PERMISSIONS
+    // -------------------------------------------------------------------------
+    function renderPermissionsScreen() {
+      const presets = [
+        {
+          id: 'cautious',
+          name: 'Cautious',
+          badge: 'Strictest',
+          summary: 'Reads run automatically; every write or send waits for your approval.'
+        },
+        {
+          id: 'balanced',
+          name: 'Balanced',
+          badge: 'Default',
+          summary: 'Reads and safe drafts run automatically; sending emails, external shares, and edits wait for approval.'
+        },
+        {
+          id: 'handoff',
+          name: 'Hands-off',
+          badge: 'Fastest',
+          summary: 'Reads and routine writes run automatically; risky actions (unknown recipients, bulk delete, hidden instructions) are still strictly blocked.'
+        }
+      ];
+
+      const apps = [
+        { id: 'gmail', name: 'Gmail', subtitle: 'Reading messages, preparing drafts, and sending emails' },
+        { id: 'calendar', name: 'Google Calendar', subtitle: 'Checking availability and creating schedule events' },
+        { id: 'drive', name: 'Google Drive', subtitle: 'Reading files and saving documents into folders' },
+        { id: 'tasks', name: 'Google Tasks', subtitle: 'Suggesting and syncing smart tasks to your Google Tasks list' }
+      ];
+
+      return `
+        <div class="mb-7">
+          <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-[#2563EB]/12 border border-blue-400/25 text-[#93C5FD] text-xs font-medium mb-3">
+            <span>Per-App Autonomy Controls</span>
+          </div>
+          <h1 class="text-2xl sm:text-3xl font-bold text-white display-heading">Permissions</h1>
+          <p class="text-sm text-gray-400 mt-1">
+            Set how much freedom your AI agent gets per app. Core safety blocks always remain active.
+          </p>
+        </div>
+
+        <div class="space-y-5">
+          ${apps.map(app => {
+            const activePreset = state.permissions[app.id];
+            const activeObj = presets.find(p => p.id === activePreset);
+            return `
+              <div class="tether-card p-5 sm:p-6">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+                  <div class="flex items-center gap-3">
+                    ${getAppIcon(app.id)}
+                    <div>
+                      <h3 class="text-sm font-semibold text-white">${app.name}</h3>
+                      <p class="text-xs text-gray-400">${app.subtitle}</p>
+                    </div>
+                  </div>
+                  <span class="text-[11px] font-mono px-2.5 py-1 rounded-md bg-blue-500/10 text-blue-300 border border-blue-400/20 self-start sm:self-center">
+                    POLICY: ${activeObj.name.toUpperCase()}
+                  </span>
+                </div>
+
+                <!-- 3 Tactile Framer-Style Segmented Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  ${presets.map(p => {
+                    const selected = activePreset === p.id;
+                    return `
+                      <button
+                        onclick="setPermissionPreset('${app.id}', '${p.id}')"
+                        class="text-left p-4 rounded-xl border transition-all ${
+                          selected
+                            ? 'bg-[#2563EB]/12 border-[#2563EB] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_0_1px_rgba(37,99,235,0.35)]'
+                            : 'bg-[#08080A] border-white/[0.07] hover:border-white/[0.16]'
+                        }"
+                      >
+                        <div class="flex items-center justify-between mb-2">
+                          <span class="text-xs font-semibold text-white flex items-center gap-2">
+                            <span class="w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
+                              selected ? 'border-blue-400 bg-[#2563EB]' : 'border-gray-600'
+                            }">
+                              ${selected ? '<span class="w-1.5 h-1.5 rounded-full bg-white"></span>' : ''}
+                            </span>
+                            ${p.name}
+                          </span>
+                          <span class="text-[10px] px-2 py-0.5 rounded-full ${
+                            selected
+                              ? 'bg-blue-500/20 text-blue-300 border border-blue-400/30'
+                              : 'bg-white/[0.04] text-gray-500'
+                          }">
+                            ${p.badge}
+                          </span>
+                        </div>
+                        <p class="text-xs text-gray-400 leading-relaxed pl-5">
+                          ${p.summary}
+                        </p>
+                      </button>
+                    `;
+                  }).join('')}
+                </div>
+
+                <!-- Live Policy Preview Footer -->
+                <div class="mt-4 pt-3.5 border-t border-white/[0.06] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                  <span class="text-gray-400">
+                    <strong class="text-gray-200 font-medium">Active behavior:</strong> ${activeObj.summary}
+                  </span>
+                  <span class="text-[11px] text-emerald-400 shrink-0">✓ Hard safety blocks enforced</span>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    }
+
+    // -------------------------------------------------------------------------
+    // SCREEN 4: APPROVALS
+    // -------------------------------------------------------------------------
+    function renderApprovalsScreen() {
+      return `
+        <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-7">
+          <div>
+            <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-amber-500/12 border border-amber-400/25 text-amber-300 text-xs font-medium mb-3">
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+              <span>Human Sign-Off Queue</span>
+            </div>
+            <h1 class="text-2xl sm:text-3xl font-bold text-white display-heading">Approvals</h1>
+            <p class="text-sm text-gray-400 mt-1">
+              Review what your AI agent wants to change before anything is sent, saved, or scheduled.
+            </p>
+          </div>
+          <span class="text-xs font-mono px-3 py-1.5 rounded-lg bg-[#12141A] border border-white/[0.08] text-gray-300 tabular-nums self-start sm:self-auto">
+            ${state.approvals.length} WAITING
+          </span>
+        </div>
+
+        ${state.approvals.length === 0 ? `
+          <div class="tether-card p-10 text-center">
+            <div class="w-11 h-11 rounded-xl bg-[#10B981]/12 border border-[#10B981]/25 flex items-center justify-center text-[#34D399] mx-auto mb-3.5">
+              <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+            </div>
+            <h3 class="text-base font-semibold text-white">All clear — nothing waiting</h3>
+            <p class="text-xs text-gray-400 max-w-md mx-auto mt-1.5 leading-relaxed">
+              Every action has been reviewed. When your AI tries to send an email, add an event, or save a file, it will pause here.
+            </p>
+            <button onclick="runDemoStep1()" class="btn-dark text-xs px-4 py-2 mt-5">
+              Simulate Student Deadline Flow
+            </button>
+          </div>
+        ` : `
+          <div class="space-y-4">
+            ${state.approvals.map(item => `
+              <div class="tether-card p-5 sm:p-6">
+                <div class="flex flex-col lg:flex-row lg:items-start justify-between gap-5">
+                  <div class="flex items-start gap-3.5 min-w-0 flex-1">
+                    ${getAppIcon(item.app)}
+                    <div class="min-w-0 flex-1">
+                      <div class="flex flex-wrap items-center gap-2 mb-1.5">
+                        <span class="text-xs font-semibold text-gray-300">${item.appName}</span>
+                        <span class="text-gray-600">·</span>
+                        ${getDecisionBadge('Waiting')}
+                        <span class="text-[11px] text-gray-500 tabular-nums">${item.timestamp}</span>
+                      </div>
+
+                      <h3 class="text-base font-semibold text-white leading-snug">
+                        ${item.title}
+                      </h3>
+
+                      <p class="text-xs text-gray-400 mt-1">
+                        <strong class="text-gray-300 font-medium">Why it paused:</strong> ${item.whyPaused}
+                      </p>
+
+                      <!-- Structured Preview Details -->
+                      <div class="mt-3.5 p-3.5 rounded-xl bg-[#08080A] border border-white/[0.07] space-y-2">
+                        ${item.details.map(d => `
+                          <div class="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-3 text-xs">
+                            <span class="text-gray-500 sm:w-28 shrink-0">${d.label}</span>
+                            <span class="text-gray-200 break-words">${d.value}</span>
+                          </div>
+                        `).join('')}
+
+                        ${item.messagePreview ? `
+                          <div class="pt-2 mt-2 border-t border-white/[0.06]">
+                            <div class="text-[11px] text-gray-500 mb-1">Message Preview</div>
+                            <p class="text-xs text-gray-300 leading-relaxed bg-[#12141A] p-2.5 rounded-lg border border-white/[0.06]">
+                              "${item.messagePreview}"
+                            </p>
+                          </div>
+                        ` : ''}
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Approve / Deny Controls -->
+                  <div class="flex items-center gap-2.5 shrink-0 pl-12 lg:pl-0">
+                    <button
+                      onclick="handleApprovalAction('${item.id}', false)"
+                      class="btn-dark px-4 py-2 text-xs hover:border-red-500/40 hover:text-red-300"
+                    >
+                      Deny
+                    </button>
+                    <button
+                      onclick="handleApprovalAction('${item.id}', true)"
+                      class="btn-cobalt px-4 py-2 text-xs"
+                    >
+                      Approve
+                    </button>
+                  </div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `}
+      `;
+    }
+
+    // -------------------------------------------------------------------------
+    // SCREEN 5: AUDIT LOG (Notion-style Database Table)
+    // -------------------------------------------------------------------------
+    function setAuditFilter(filterVal) {
+      state.auditFilter = filterVal;
+      renderView();
+    }
+
+    function setAuditSearch(query) {
+      state.auditSearch = query;
+      renderView();
+    }
+
+    function renderAuditScreen() {
+      const filters = [
+        { id: 'all', label: 'All' },
+        { id: 'allowed', label: 'Allowed' },
+        { id: 'waiting', label: 'Waiting' },
+        { id: 'blocked', label: 'Blocked' },
+        { id: 'gmail', label: 'Gmail' },
+        { id: 'calendar', label: 'Calendar' },
+        { id: 'drive', label: 'Drive' }
+      ];
+
+      const filteredRows = state.auditLog.filter(row => {
+        const f = state.auditFilter;
+        const matchesFilter =
+          f === 'all' ||
+          row.decision.toLowerCase() === f ||
+          row.app.toLowerCase().includes(f);
+
+        const q = state.auditSearch.trim().toLowerCase();
+        const matchesQuery =
+          !q ||
+          row.action.toLowerCase().includes(q) ||
+          row.reason.toLowerCase().includes(q) ||
+          row.app.toLowerCase().includes(q);
+
+        return matchesFilter && matchesQuery;
+      });
+
+      return `
+        <div class="mb-7">
+          <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-[#2563EB]/12 border border-blue-400/25 text-[#93C5FD] text-xs font-medium mb-3">
+            <span>Immutable Activity Record</span>
+          </div>
+          <h1 class="text-2xl sm:text-3xl font-bold text-white display-heading">Audit Log</h1>
+          <p class="text-sm text-gray-400 mt-1">
+            Every decision — allowed, waiting, or blocked — logged automatically with a plain-English reason.
+          </p>
+        </div>
+
+        <!-- Filter Bar & Search -->
+        <div class="tether-card p-3.5 mb-5 flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div class="flex flex-wrap items-center gap-1.5">
+            ${filters.map(f => {
+              const active = state.auditFilter === f.id;
+              return `
+                <button
+                  onclick="setAuditFilter('${f.id}')"
+                  class="px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                    active
+                      ? 'bg-[#2563EB]/20 text-[#93C5FD] border border-blue-400/35'
+                      : 'bg-white/[0.03] text-gray-400 hover:text-gray-200 hover:bg-white/[0.06] border border-transparent'
+                  }"
+                >
+                  ${f.label}
+                </button>
+              `;
+            }).join('')}
+          </div>
+
+          <div class="relative w-full md:w-64">
+            <svg class="w-3.5 h-3.5 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text"
+              value="${state.auditSearch.replace(/"/g, '&quot;')}"
+              oninput="setAuditSearch(this.value)"
+              placeholder="Filter log entries..."
+              class="w-full bg-[#08080A] border border-white/[0.09] rounded-lg pl-8 pr-3 py-1.5 text-xs text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500/50"
+            />
+          </div>
+        </div>
+
+        <!-- Notion-Style Database Table -->
+        <div class="tether-card overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="border-b border-white/[0.08] bg-[#0D0E12] text-[11px] font-medium uppercase tracking-wider text-gray-500">
+                  <th class="py-3 px-4">Decision</th>
+                  <th class="py-3 px-4">App</th>
+                  <th class="py-3 px-4">Plain-English Action</th>
+                  <th class="py-3 px-4">Reason</th>
+                  <th class="py-3 px-4 text-right">Time</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-white/[0.06] text-xs">
+                ${filteredRows.length === 0 ? `
+                  <tr>
+                    <td colspan="5" class="py-10 text-center text-gray-500">
+                      No matching entries found in the audit log.
+                    </td>
+                  </tr>
+                ` : filteredRows.map(row => `
+                  <tr class="hover:bg-white/[0.02] transition-colors ${row.decision === 'Blocked' ? 'bg-red-500/[0.03]' : ''}">
+                    <td class="py-3.5 px-4 whitespace-nowrap align-top">${getDecisionBadge(row.decision)}</td>
+                    <td class="py-3.5 px-4 whitespace-nowrap align-top font-medium text-gray-300">${row.app}</td>
+                    <td class="py-3.5 px-4 align-top font-medium text-gray-100 min-w-[210px]">${row.action}</td>
+                    <td class="py-3.5 px-4 align-top text-gray-400 leading-relaxed min-w-[260px]">${row.reason}</td>
+                    <td class="py-3.5 px-4 whitespace-nowrap align-top text-right text-gray-500 tabular-nums">${row.time}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    // -------------------------------------------------------------------------
+    // SCREEN 6: RECIPES
+    // -------------------------------------------------------------------------
+    function renderRecipesScreen() {
+      return `
+        <div class="mb-7">
+          <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-[#2563EB]/12 border border-blue-400/25 text-[#93C5FD] text-xs font-medium mb-3">
+            <span>Cross-App Guarded Workflows</span>
+          </div>
+          <h1 class="text-2xl sm:text-3xl font-bold text-white display-heading">Recipes</h1>
+          <p class="text-sm text-gray-400 mt-1">
+            Automate multi-step tasks across Gmail, Calendar, and Drive with built-in safety guardrails.
+          </p>
+        </div>
+
+        <div class="space-y-4">
+          ${state.recipes.map(recipe => `
+            <div class="tether-card p-5 sm:p-6">
+              <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-4">
+                <div>
+                  <div class="flex flex-wrap items-center gap-2.5">
+                    <span class="font-mono text-[11px] text-blue-300 bg-blue-500/10 border border-blue-400/20 px-2 py-0.5 rounded">
+                      ${recipe.ruleId}
+                    </span>
+                    <h3 class="text-sm sm:text-base font-semibold text-white">${recipe.name}</h3>
+                    <span class="text-[11px] px-2 py-0.5 rounded-full ${
+                      recipe.enabled
+                        ? 'bg-[#10B981]/12 text-[#34D399] border border-[#10B981]/25'
+                        : 'bg-white/[0.04] text-gray-500 border border-white/[0.07]'
+                    }">
+                      ${recipe.enabled ? 'Active' : 'Paused'}
+                    </span>
+                  </div>
+
+                  <p class="text-xs text-gray-400 mt-2 leading-relaxed max-w-2xl">
+                    ${recipe.description}
+                  </p>
+                </div>
+
+                <div class="flex items-center gap-3 shrink-0">
+                  <button
+                    onclick="runRecipeTest('${recipe.id}')"
+                    class="btn-dark text-xs px-3 py-1.5 hover:border-blue-400/40"
+                  >
+                    Run Test
+                  </button>
+                  <button
+                    onclick="toggleRecipeState('${recipe.id}')"
+                    aria-label="Toggle ${recipe.name}"
+                    class="switch-track ${recipe.enabled ? 'active' : ''}"
+                  >
+                    <span class="switch-thumb"></span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Workflow Steps -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-${recipe.steps.length} gap-2.5 pt-3.5 border-t border-white/[0.07]">
+                ${recipe.steps.map((step, i) => `
+                  <div class="p-3 rounded-xl bg-[#08080A] border border-white/[0.06]">
+                    <div class="text-[10px] font-mono uppercase tracking-wider text-gray-500 mb-1">
+                      Step ${i + 1} · ${step.app}
+                    </div>
+                    <div class="text-xs text-gray-200 font-medium leading-snug">
+                      ${step.text}
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+
+              <!-- Attached Safety Guardrail Footer -->
+              <div class="mt-3.5 pt-3 border-t border-white/[0.06] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px]">
+                <span class="text-blue-300/90 flex items-center gap-1.5">
+                  <svg class="w-3.5 h-3.5 text-blue-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  </svg>
+                  <span><strong>Safety Guardrail:</strong> ${recipe.guardrail}</span>
+                </span>
+                <span class="text-gray-500 tabular-nums shrink-0">${recipe.runs} runs logged</span>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    // -------------------------------------------------------------------------
+    // SCREEN 7: SMART TASKS
+    // -------------------------------------------------------------------------
+    function renderTasksScreen() {
+      const suggested = state.tasks.filter(t => t.status === 'suggested');
+      const boardTasks = state.tasks.filter(t => {
+        if (t.status === 'dismissed') return false;
+        if (state.taskFilter === 'all') return t.status !== 'suggested';
+        return t.status === state.taskFilter;
+      });
+
+      const prioBadge = (p) => {
+        if (p === 'high') return `<span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-red-500/12 text-red-300 border border-red-500/25">HIGH</span>`;
+        if (p === 'medium') return `<span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/12 text-amber-300 border border-amber-500/25">MEDIUM</span>`;
+        return `<span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/[0.05] text-gray-400 border border-white/[0.08]">LOW</span>`;
+      };
+
+      const statusLabel = (s) => {
+        if (s === 'done') return 'Done';
+        if (s === 'in_progress') return 'In Progress';
+        if (s === 'suggested') return 'Suggested';
+        return 'To Do';
+      };
+
+      const filters = [
+        { id: 'all', label: 'Active & Done' },
+        { id: 'todo', label: 'To Do' },
+        { id: 'in_progress', label: 'In Progress' },
+        { id: 'done', label: 'Completed' }
+      ];
+
+      return `
+        <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-7">
+          <div>
+            <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-[#2563EB]/12 border border-blue-400/25 text-[#93C5FD] text-xs font-medium mb-3">
+              <span class="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+              <span>Automated Task Intelligence</span>
+            </div>
+            <h1 class="text-2xl sm:text-3xl font-bold text-white display-heading">Smart Tasks</h1>
+            <p class="text-sm text-gray-400 mt-1">
+              Tether scans your connected Google Workspace apps, suggests tasks safely, and stores everything locally in SQLite.
+            </p>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2.5 shrink-0">
+            <button onclick="toggleAutoScan()" class="btn-dark text-xs px-3 py-2 flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full ${state.autoScanEnabled ? 'bg-emerald-400' : 'bg-gray-500'}"></span>
+              <span>Auto-Scan: ${state.autoScanEnabled ? 'ON' : 'OFF'}</span>
+            </button>
+            <button onclick="runSmartScan()" class="btn-cobalt text-xs px-4 py-2 flex items-center gap-2">
+              <svg class="w-3.5 h-3.5 ${state.scanning ? 'animate-spin' : ''}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span>${state.scanning ? 'Scanning Workspace...' : 'Scan Workspace Now'}</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Smart Extractor + Quick Add Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-7">
+          <!-- Smart Text / Email Extractor -->
+          <form onsubmit="parseSmartTasks(event)" class="tether-card p-5 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <h3 class="text-sm font-semibold text-white">Smart Email / Note Extractor</h3>
+                <select id="smart-parse-source" class="bg-[#08080A] border border-white/[0.1] rounded-lg px-2 py-1 text-[11px] text-gray-300">
+                  <option value="gmail">From Gmail</option>
+                  <option value="calendar">From Calendar</option>
+                  <option value="drive">From Drive</option>
+                  <option value="manual">Note / Prompt</option>
+                </select>
+              </div>
+              <p class="text-xs text-gray-400 mb-3">
+                Paste any email, meeting note, or prompt. Tether extracts prioritized tasks and blocks hidden prompt injections.
+              </p>
+              <textarea
+                id="smart-parse-input"
+                rows="3"
+                placeholder="e.g. Please submit the Q4 budget review by Dec 5 and schedule a sync with the design team tomorrow."
+                class="w-full px-3 py-2.5 rounded-xl bg-[#08080A] border border-white/[0.09] text-xs text-gray-100 placeholder-gray-600 focus:outline-none focus:border-blue-500"
+              ></textarea>
+            </div>
+            <div class="mt-3 flex items-center justify-between gap-2">
+              <span class="text-[11px] text-gray-500">Protected by Tether Injection Guard</span>
+              <button type="submit" class="btn-cobalt text-xs px-3.5 py-2">Extract Smart Tasks</button>
+            </div>
+          </form>
+
+          <!-- Quick Add Task -->
+          <form onsubmit="createManualTask(event)" class="tether-card p-5 flex flex-col justify-between">
+            <div>
+              <h3 class="text-sm font-semibold text-white mb-2">Add Task Directly</h3>
+              <p class="text-xs text-gray-400 mb-3">
+                Create a tracked task in Tether and optionally sync it to Google Tasks.
+              </p>
+              <div class="space-y-3">
+                <input
+                  id="new-task-title"
+                  type="text"
+                  placeholder="Task title (e.g. Review CS-301 rubric & upload draft)"
+                  class="w-full px-3 py-2.5 rounded-xl bg-[#08080A] border border-white/[0.09] text-xs text-gray-100 placeholder-gray-600 focus:outline-none focus:border-blue-500"
+                />
+                <div class="grid grid-cols-2 gap-2.5">
+                  <select id="new-task-priority" class="px-3 py-2 rounded-xl bg-[#08080A] border border-white/[0.09] text-xs text-gray-200 focus:outline-none focus:border-blue-500">
+                    <option value="high">High Priority</option>
+                    <option value="medium" selected>Medium Priority</option>
+                    <option value="low">Low Priority</option>
+                  </select>
+                  <input
+                    id="new-task-due"
+                    type="datetime-local"
+                    class="px-3 py-2 rounded-xl bg-[#08080A] border border-white/[0.09] text-xs text-gray-200 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+            </div>
+            <div class="mt-3 flex items-center justify-between gap-2">
+              <label class="flex items-center gap-2 text-xs text-gray-400 cursor-pointer">
+                <input id="new-task-sync" type="checkbox" class="rounded border-white/20 bg-[#08080A]" ${state.googleAuth?.connected ? 'checked' : ''} />
+                <span>Sync to Google Tasks</span>
+              </label>
+              <button type="submit" class="btn-dark text-xs px-4 py-2 hover:border-blue-400/40">+ Save Task</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Suggested Tasks Queue -->
+        <div class="tether-card overflow-hidden mb-7 border-blue-500/20">
+          <div class="px-5 py-4 border-b border-white/[0.07] flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <span class="w-2 h-2 rounded-full bg-blue-400"></span>
+              <h2 class="text-sm font-semibold text-white">Suggested Tasks (${suggested.length})</h2>
+            </div>
+            <span class="text-[11px] text-gray-500">Accept to store on your board or schedule in Calendar</span>
+          </div>
+
+          ${suggested.length === 0 ? `
+            <div class="px-5 py-7 text-center text-xs text-gray-400">
+              All suggestions have been triaged. Click <strong class="text-gray-200">Scan Workspace Now</strong> to check for new signals.
+            </div>
+          ` : `
+            <div class="divide-y divide-white/[0.06]">
+              ${suggested.map(t => `
+                <div class="px-5 py-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4 hover:bg-white/[0.02] transition-colors">
+                  <div class="flex items-start gap-3.5 min-w-0">
+                    ${getAppIcon(t.source_app)}
+                    <div class="min-w-0">
+                      <div class="flex flex-wrap items-center gap-2">
+                        ${prioBadge(t.priority)}
+                        <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-300 border border-blue-400/25">${t.confidence || 90}% confidence</span>
+                        <span class="text-sm font-semibold text-white">${t.title}</span>
+                      </div>
+                      <p class="text-xs text-gray-400 mt-1">${t.suggested_reason || t.description}</p>
+                      ${t.due_at ? `<div class="text-[11px] text-blue-300/80 mt-1 font-mono">Due: ${t.due_at.replace('T', ' ').slice(0, 16)}</div>` : ''}
+                    </div>
+                  </div>
+                  <div class="flex flex-wrap items-center gap-2 shrink-0 pl-12 lg:pl-0">
+                    <button onclick="updateTaskStatus('${t.id}', 'dismissed')" class="btn-dark text-xs px-3 py-1.5">Dismiss</button>
+                    <button onclick="acceptSuggestedTask('${t.id}', true)" class="btn-dark text-xs px-3 py-1.5 hover:border-blue-400/40">Accept + Calendar</button>
+                    <button onclick="acceptSuggestedTask('${t.id}', false)" class="btn-cobalt text-xs px-3.5 py-1.5">Accept</button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          `}
+        </div>
+
+        <!-- Stored Task Board -->
+        <div class="tether-card overflow-hidden">
+          <div class="px-5 py-4 border-b border-white/[0.07] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 class="text-sm font-semibold text-white">Stored Task Board</h2>
+              <p class="text-xs text-gray-500 mt-0.5">Persisted locally in SQLite · Synced with Google Tasks when authorized</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-1.5">
+              ${filters.map(f => `
+                <button
+                  onclick="setTaskFilter('${f.id}')"
+                  class="px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                    state.taskFilter === f.id
+                      ? 'bg-[#2563EB] text-white'
+                      : 'bg-[#08080A] text-gray-400 hover:text-white border border-white/[0.07]'
+                  }"
+                >${f.label}</button>
+              `).join('')}
+            </div>
+          </div>
+
+          ${boardTasks.length === 0 ? `
+            <div class="px-5 py-10 text-center text-xs text-gray-400">
+              No tasks in this view yet. Accept a suggestion above or add a task directly.
+            </div>
+          ` : `
+            <div class="divide-y divide-white/[0.06]">
+              ${boardTasks.map(t => `
+                <div class="px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-white/[0.02] transition-colors">
+                  <div class="flex items-start gap-3.5 min-w-0">
+                    <button
+                      onclick="updateTaskStatus('${t.id}', '${t.status === 'done' ? 'todo' : 'done'}')"
+                      class="mt-0.5 w-5 h-5 rounded-md border flex items-center justify-center shrink-0 transition-all ${
+                        t.status === 'done'
+                          ? 'bg-[#10B981] border-[#10B981] text-black'
+                          : 'border-white/25 hover:border-blue-400 text-transparent'
+                      }"
+                      title="Toggle Complete"
+                    >
+                      <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+                    </button>
+                    <div class="min-w-0">
+                      <div class="flex flex-wrap items-center gap-2">
+                        ${prioBadge(t.priority)}
+                        <span class="text-[13px] font-medium ${t.status === 'done' ? 'line-through text-gray-500' : 'text-gray-100'}">${t.title}</span>
+                        ${t.google_task_id ? `<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/12 text-emerald-300 border border-emerald-500/25">Google Tasks</span>` : ''}
+                      </div>
+                      ${t.description ? `<p class="text-xs text-gray-400 mt-1">${t.description}</p>` : ''}
+                      <div class="flex flex-wrap items-center gap-3 mt-1 text-[11px] text-gray-500">
+                        <span>Source: ${t.source_app}</span>
+                        ${t.due_at ? `<span class="font-mono">Due: ${t.due_at.replace('T', ' ').slice(0, 16)}</span>` : ''}
+                      </div>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-2 shrink-0 pl-8 sm:pl-0">
+                    <select
+                      onchange="updateTaskStatus('${t.id}', this.value)"
+                      class="bg-[#08080A] border border-white/[0.1] rounded-lg px-2 py-1 text-[11px] text-gray-300"
+                    >
+                      <option value="todo" ${t.status === 'todo' ? 'selected' : ''}>To Do</option>
+                      <option value="in_progress" ${t.status === 'in_progress' ? 'selected' : ''}>In Progress</option>
+                      <option value="done" ${t.status === 'done' ? 'selected' : ''}>Done</option>
+                    </select>
+                    <button onclick="deleteTaskItem('${t.id}')" class="text-xs text-gray-500 hover:text-red-400 px-2 py-1" title="Delete Task">✕</button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          `}
+        </div>
+      `;
+    }
+
+    // =========================================================================
+    // BOOTSTRAP
+    // =========================================================================
+    window.addEventListener('DOMContentLoaded', async () => {
+      try {
+        await refreshState();
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('oauth') === 'success') {
+          showToast('Google Workspace Connected', 'Live Gmail, Calendar, Drive, and Tasks sync is now active.', 'green');
+          window.history.replaceState({}, document.title, '/');
+        } else if (params.get('oauth') === 'error') {
+          showToast('OAuth Error', params.get('reason') || 'Authorization failed.', 'red');
+          window.history.replaceState({}, document.title, '/');
+        }
+      } catch (err) {
+        showToast('Backend connection error', 'Could not reach Tether API server.', 'red');
+      }
+    });
+  </script>
+</body>
+</html>
